@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/includes/security.php';
 require __DIR__ . '/includes/apps.php';
+require __DIR__ . '/includes/auth.php';
 
 start_secure_session();
 
@@ -46,32 +47,19 @@ switch ($action) {
 function handle_login(): void
 {
     $error = null;
-    $identifier = client_identifier();
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $remaining = login_lockout_remaining($identifier);
+        $password = (string) ($_POST['password'] ?? '');
+        $result = attempt_login($password, $_POST['csrf_token'] ?? null, client_identifier());
 
-        if ($remaining > 0) {
-            $error = "Trop de tentatives échouées. Réessayez dans {$remaining} secondes.";
-        } elseif (!csrf_verify($_POST['csrf_token'] ?? null)) {
-            $error = 'Requête invalide (jeton de sécurité manquant ou expiré). Réessayez.';
-        } else {
-            $password = (string) ($_POST['password'] ?? '');
-            $hash = getenv('ADMIN_PASSWORD_HASH') ?: '';
-
-            if ($hash !== '' && password_verify($password, $hash)) {
-                clear_login_attempts($identifier);
-                session_regenerate_id(true);
-                $_SESSION['authenticated'] = true;
-                audit_log('login_success');
-                header('Location: /admin.php');
-                exit;
-            }
-
-            register_failed_login($identifier);
-            audit_log('login_failed');
-            $error = 'Mot de passe incorrect.';
+        if ($result['success']) {
+            session_regenerate_id(true);
+            $_SESSION['authenticated'] = true;
+            header('Location: /admin.php');
+            exit;
         }
+
+        $error = $result['message'];
     }
 
     if (is_authenticated()) {

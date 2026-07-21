@@ -4,31 +4,38 @@ declare(strict_types=1);
 
 function process_delete_request(): void
 {
-    $slug = trim((string) ($_POST['slug'] ?? ''));
+    $result = attempt_delete($_POST);
+    redirect_to_dashboard($result['message'], !$result['success']);
+}
 
-    if (!csrf_verify($_POST['csrf_token'] ?? null)) {
-        redirect_to_dashboard('Jeton de sécurité invalide ou expiré.', true);
-        return;
+/**
+ * Logique complète de suppression, sans aucun effet de bord HTTP
+ * (pas de header()/exit) — directement testable.
+ */
+function attempt_delete(array $post): array
+{
+    $slug = trim((string) ($post['slug'] ?? ''));
+
+    if (!csrf_verify($post['csrf_token'] ?? null)) {
+        return ['success' => false, 'message' => 'Jeton de sécurité invalide ou expiré.'];
     }
 
-    if (($_POST['confirm'] ?? '') !== '1') {
-        redirect_to_dashboard('Suppression annulée : confirmation manquante.', true);
-        return;
+    if (($post['confirm'] ?? '') !== '1') {
+        return ['success' => false, 'message' => 'Suppression annulée : confirmation manquante.'];
     }
 
     if (!is_valid_app_slug($slug)) {
-        redirect_to_dashboard('Nom de dossier invalide.', true);
-        return;
+        return ['success' => false, 'message' => 'Nom de dossier invalide.'];
     }
 
-    $targetDir = APPS_DIR . '/' . $slug;
+    $targetDir = apps_dir() . '/' . $slug;
     if (!is_dir($targetDir)) {
-        redirect_to_dashboard("L'application « {$slug} » n'existe pas.", true);
-        return;
+        return ['success' => false, 'message' => "L'application « {$slug} » n'existe pas."];
     }
 
     remove_directory_recursive($targetDir);
     regenerate_portal_menu();
     audit_log('delete_success', ['slug' => $slug]);
-    redirect_to_dashboard("Application « {$slug} » supprimée.");
+
+    return ['success' => true, 'message' => "Application « {$slug} » supprimée."];
 }

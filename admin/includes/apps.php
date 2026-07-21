@@ -2,16 +2,29 @@
 
 declare(strict_types=1);
 
-const APPS_DIR = '/data/apps';
-const PORTAL_DIR = '/data/portal';
-const PORTAL_HISTORY_DIR = '/data/portal/history';
+function apps_dir(): string
+{
+    return getenv('APPS_DIR') ?: '/data/apps';
+}
+
+function portal_dir(): string
+{
+    return getenv('PORTAL_DIR') ?: '/data/portal';
+}
+
+function portal_history_dir(): string
+{
+    return getenv('PORTAL_HISTORY_DIR') ?: '/data/portal/history';
+}
 
 /**
- * Scanne APPS_DIR et retourne la liste des apps triées par titre.
+ * Scanne le dossier des apps et retourne la liste triée par titre.
  * Chaque entrée : ['slug' => string, 'title' => string, 'description' => string, 'icon' => string]
  */
-function scan_apps(string $appsDir = APPS_DIR): array
+function scan_apps(?string $appsDir = null): array
 {
+    $appsDir ??= apps_dir();
+
     if (!is_dir($appsDir)) {
         return [];
     }
@@ -127,8 +140,11 @@ function render_portal_html(array $apps): string
  * Sauvegarde l'index.html courant (s'il existe) dans history/ avec un
  * horodatage ISO (":" remplacés par "-" pour rester compatible filesystem).
  */
-function archive_current_index(string $portalDir = PORTAL_DIR, string $historyDir = PORTAL_HISTORY_DIR): ?string
+function archive_current_index(?string $portalDir = null, ?string $historyDir = null): ?string
 {
+    $portalDir ??= portal_dir();
+    $historyDir ??= portal_history_dir();
+
     $currentIndex = $portalDir . '/index.html';
     if (!is_file($currentIndex)) {
         return null;
@@ -150,10 +166,14 @@ function archive_current_index(string $portalDir = PORTAL_DIR, string $historyDi
  * puis écrit la nouvelle. Appelable manuellement ou après upload/suppression.
  */
 function regenerate_portal_menu(
-    string $appsDir = APPS_DIR,
-    string $portalDir = PORTAL_DIR,
-    string $historyDir = PORTAL_HISTORY_DIR
+    ?string $appsDir = null,
+    ?string $portalDir = null,
+    ?string $historyDir = null
 ): array {
+    $appsDir ??= apps_dir();
+    $portalDir ??= portal_dir();
+    $historyDir ??= portal_history_dir();
+
     if (!is_dir($portalDir)) {
         mkdir($portalDir, 0755, true);
     }

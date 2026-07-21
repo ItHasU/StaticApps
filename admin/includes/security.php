@@ -2,19 +2,34 @@
 
 declare(strict_types=1);
 
-const SECURITY_STATE_DIR = '/data/.admin-state';
-const LOGIN_ATTEMPTS_FILE = SECURITY_STATE_DIR . '/login_attempts.json';
-const AUDIT_LOG_FILE = SECURITY_STATE_DIR . '/audit.log';
-const RATE_LIMIT_FILE = SECURITY_STATE_DIR . '/rate_limits.json';
-
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 300;
 const SESSION_IDLE_TIMEOUT_SECONDS = 900;
 
+function security_state_dir(): string
+{
+    return getenv('ADMIN_STATE_DIR') ?: '/data/.admin-state';
+}
+
+function login_attempts_file(): string
+{
+    return security_state_dir() . '/login_attempts.json';
+}
+
+function audit_log_file(): string
+{
+    return security_state_dir() . '/audit.log';
+}
+
+function rate_limit_file(): string
+{
+    return security_state_dir() . '/rate_limits.json';
+}
+
 function ensure_security_state_dir(): void
 {
-    if (!is_dir(SECURITY_STATE_DIR)) {
-        mkdir(SECURITY_STATE_DIR, 0700, true);
+    if (!is_dir(security_state_dir())) {
+        mkdir(security_state_dir(), 0700, true);
     }
 }
 
@@ -108,10 +123,10 @@ function client_identifier(): string
 function read_login_attempts(): array
 {
     ensure_security_state_dir();
-    if (!is_file(LOGIN_ATTEMPTS_FILE)) {
+    if (!is_file(login_attempts_file())) {
         return [];
     }
-    $raw = file_get_contents(LOGIN_ATTEMPTS_FILE);
+    $raw = file_get_contents(login_attempts_file());
     $decoded = $raw === false ? null : json_decode($raw, true);
     return is_array($decoded) ? $decoded : [];
 }
@@ -119,7 +134,7 @@ function read_login_attempts(): array
 function write_login_attempts(array $attempts): void
 {
     ensure_security_state_dir();
-    file_put_contents(LOGIN_ATTEMPTS_FILE, json_encode($attempts), LOCK_EX);
+    file_put_contents(login_attempts_file(), json_encode($attempts), LOCK_EX);
 }
 
 /**
@@ -176,8 +191,8 @@ function rate_limit_allow(string $bucket, string $identifier, int $maxHits, int 
     ensure_security_state_dir();
 
     $data = [];
-    if (is_file(RATE_LIMIT_FILE)) {
-        $raw = file_get_contents(RATE_LIMIT_FILE);
+    if (is_file(rate_limit_file())) {
+        $raw = file_get_contents(rate_limit_file());
         $decoded = $raw === false ? null : json_decode($raw, true);
         $data = is_array($decoded) ? $decoded : [];
     }
@@ -193,7 +208,7 @@ function rate_limit_allow(string $bucket, string $identifier, int $maxHits, int 
     $hits[] = $now;
     $data[$key] = $hits;
 
-    file_put_contents(RATE_LIMIT_FILE, json_encode($data), LOCK_EX);
+    file_put_contents(rate_limit_file(), json_encode($data), LOCK_EX);
 
     return $allowed;
 }
@@ -237,5 +252,5 @@ function audit_log(string $event, array $context = []): void
         client_identifier(),
         $context !== [] ? ' ' . json_encode($context) : ''
     );
-    file_put_contents(AUDIT_LOG_FILE, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+    file_put_contents(audit_log_file(), $line . PHP_EOL, FILE_APPEND | LOCK_EX);
 }

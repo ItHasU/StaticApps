@@ -1,0 +1,49 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: zip, fileinfo, mbstring
+
+      - name: Install dependencies
+        working-directory: admin
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHPUnit
+        working-directory: admin
+        run: vendor/bin/phpunit
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: zip, fileinfo, mbstring
+
+      - name: Install nginx
+        run: sudo apt-get update && sudo apt-get install -y nginx-light
+
+      - name: Prepare /data
+        run: sudo mkdir -p /data && sudo chown "$USER" /data
+
+      - name: Run end-to-end suite
+        run: bash tests/e2e/run.sh

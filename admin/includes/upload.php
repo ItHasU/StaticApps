@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-const UPLOAD_TMP_BASE = '/data/.admin-state/upload-tmp';
 const MAX_ZIP_ENTRIES = 500;
 const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024;
 const MAX_COMPRESSION_RATIO = 100;
@@ -13,14 +12,28 @@ function max_upload_bytes(): int
     return $mb * 1024 * 1024;
 }
 
+function upload_tmp_base(): string
+{
+    return security_state_dir() . '/upload-tmp';
+}
+
 function process_upload_request(): void
 {
-    $identifier = client_identifier();
-    $slug = trim((string) ($_POST['slug'] ?? ''));
-    $overwrite = !empty($_POST['overwrite']);
+    $result = attempt_upload($_POST, $_FILES, client_identifier());
+    redirect_to_dashboard($result['message'], !$result['success']);
+}
+
+/**
+ * Logique complète de validation et publication d'un upload, sans aucun
+ * effet de bord HTTP (pas de header()/exit) — directement testable.
+ */
+function attempt_upload(array $post, array $files, string $identifier): array
+{
+    $slug = trim((string) ($post['slug'] ?? ''));
+    $overwrite = !empty($post['overwrite']);
     $errors = [];
 
-    if (!csrf_verify($_POST['csrf_token'] ?? null)) {
+    if (!csrf_verify($post['csrf_token'] ?? null)) {
         $errors[] = 'Jeton de sécurité invalide ou expiré.';
     }
 
@@ -32,19 +45,19 @@ function process_upload_request(): void
         $errors[] = 'Nom de dossier invalide (minuscules, chiffres et tirets uniquement, sans espace ni "..").';
     }
 
-    $uploadError = $_FILES['app_zip']['error'] ?? UPLOAD_ERR_NO_FILE;
+    $uploadError = $files['app_zip']['error'] ?? UPLOAD_ERR_NO_FILE;
     if ($errors === [] && $uploadError !== UPLOAD_ERR_OK) {
         $errors[] = describe_upload_error($uploadError);
     }
 
-    $targetDir = APPS_DIR . '/' . $slug;
+    $targetDir = apps_dir() . '/' . $slug;
     if ($errors === [] && is_dir($targetDir) && !$overwrite) {
         $errors[] = "Le dossier « {$slug} » existe déjà. Cochez « écraser » pour le remplacer.";
     }
 
     $extractedDir = null;
     if ($errors === []) {
-        $tmpName = $_FILES['app_zip']['tmp_name'];
+        $tmpName = $files['app_zip']['tmp_name'];
         $result = validate_and_extract_zip($tmpName);
         if ($result['error'] !== null) {
             $errors[] = $result['error'];
@@ -66,17 +79,16 @@ function process_upload_request(): void
         remove_directory_recursive($extractedDir);
     }
 
-    $size = $_FILES['app_zip']['size'] ?? 0;
+    $size = $files['app_zip']['size'] ?? 0;
 
     if ($errors === []) {
         regenerate_portal_menu();
         audit_log('upload_success', ['slug' => $slug, 'size' => $size]);
-        redirect_to_dashboard('Application « ' . $slug . ' » publiée avec succès.');
-        return;
+        return ['success' => true, 'message' => 'Application « ' . $slug . ' » publiée avec succès.'];
     }
 
     audit_log('upload_failed', ['slug' => $slug, 'size' => $size, 'errors' => $errors]);
-    redirect_to_dashboard(implode(' ', $errors), true);
+    return ['success' => false, 'message' => implode(' ', $errors)];
 }
 
 function describe_upload_error(int $code): string
@@ -175,10 +187,10 @@ function validate_and_extract_zip(string $uploadedPath): array
     }
 
     ensure_security_state_dir();
-    if (!is_dir(UPLOAD_TMP_BASE)) {
-        mkdir(UPLOAD_TMP_BASE, 0700, true);
+    if (!is_dir(upload_tmp_base())) {
+        mkdir(upload_tmp_base(), 0700, true);
     }
-    $extractDir = UPLOAD_TMP_BASE . '/' . bin2hex(random_bytes(16));
+    $extractDir = upload_tmp_base() . '/' . bin2hex(random_bytes(16));
     mkdir($extractDir, 0700, true);
 
     if (!$zip->extractTo($extractDir)) {
@@ -190,6 +202,7 @@ function validate_and_extract_zip(string $uploadedPath): array
 
     flatten_single_root_directory($extractDir);
     strip_execute_permissions($extractDir);
+    chmod($extractDir, 0755);
 
     if (!is_file($extractDir . '/index.html')) {
         remove_directory_recursive($extractDir);

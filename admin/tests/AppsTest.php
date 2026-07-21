@@ -18,6 +18,7 @@ final class AppsTest extends TestCase
         putenv('APPS_DIR=' . $this->root . '/apps');
         putenv('PORTAL_DIR=' . $this->root . '/portal');
         putenv('PORTAL_HISTORY_DIR=' . $this->root . '/portal/history');
+        putenv('PORTAL_ASSETS_SEED_DIR=' . $this->root . '/seed-portal');
     }
 
     protected function tearDown(): void
@@ -26,6 +27,7 @@ final class AppsTest extends TestCase
         putenv('APPS_DIR');
         putenv('PORTAL_DIR');
         putenv('PORTAL_HISTORY_DIR');
+        putenv('PORTAL_ASSETS_SEED_DIR');
     }
 
     public function testAppWithoutMetaUsesFolderNameAsTitle(): void
@@ -144,5 +146,43 @@ final class AppsTest extends TestCase
         $html = file_get_contents($this->root . '/portal/index.html');
 
         $this->assertStringContainsString('empty-state', $html);
+    }
+
+    public function testRegenerateSyncsPortalAssetsFromSeed(): void
+    {
+        mkdir($this->root . '/seed-portal', 0777, true);
+        file_put_contents($this->root . '/seed-portal/style.css', 'body { color: red; }');
+
+        regenerate_portal_menu();
+
+        $this->assertSame(
+            'body { color: red; }',
+            file_get_contents($this->root . '/portal/style.css')
+        );
+    }
+
+    public function testRegenerateOverwritesOutdatedPortalAsset(): void
+    {
+        mkdir($this->root . '/seed-portal', 0777, true);
+        file_put_contents($this->root . '/seed-portal/style.css', 'body { color: blue; }');
+        file_put_contents($this->root . '/portal/style.css', 'body { color: old; }');
+
+        regenerate_portal_menu();
+
+        $this->assertSame(
+            'body { color: blue; }',
+            file_get_contents($this->root . '/portal/style.css')
+        );
+    }
+
+    public function testRegenerateNeverCopiesIndexHtmlFromSeed(): void
+    {
+        mkdir($this->root . '/seed-portal', 0777, true);
+        file_put_contents($this->root . '/seed-portal/index.html', '<html>seed leftover</html>');
+
+        regenerate_portal_menu();
+        $html = file_get_contents($this->root . '/portal/index.html');
+
+        $this->assertStringNotContainsString('seed leftover', $html);
     }
 }

@@ -64,8 +64,8 @@ if [ ! -w /data ] 2>/dev/null && ! mkdir -p /data 2>/dev/null; then
 fi
 
 WORK_DIR=$(mktemp -d)
-rm -rf /data/apps /data/portal
-mkdir -p /data/apps /data/portal/history "$WORK_DIR/logs" "$WORK_DIR/run"
+rm -rf /data/apps /data/history /data/index.html /data/style.css
+mkdir -p /data/apps /data/history "$WORK_DIR/logs" "$WORK_DIR/run"
 
 echo "== Préparation des données de test =="
 mkdir -p /data/apps/exemple
@@ -75,7 +75,7 @@ echo '<html><body>sans meta</body></html>' > /data/apps/sans-meta/index.html
 mkdir -p /data/apps/malicious
 printf '<?php echo "EXECUTED " . (1+1); ?>' > /data/apps/malicious/shell.php
 echo '<html>malicious</html>' > /data/apps/malicious/index.html
-cp "$REPO_ROOT/portal/style.css" /data/portal/style.css
+export PORTAL_ASSETS_SEED_DIR="$REPO_ROOT/portal"
 php -r 'require $argv[1]; regenerate_portal_menu();' "$REPO_ROOT/admin/includes/apps.php"
 
 echo "== Démarrage de nginx (web/nginx.conf réel) =="

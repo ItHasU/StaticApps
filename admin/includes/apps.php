@@ -9,12 +9,22 @@ function apps_dir(): string
 
 function portal_dir(): string
 {
-    return getenv('PORTAL_DIR') ?: '/data/portal';
+    return getenv('PORTAL_DIR') ?: '/data';
 }
 
 function portal_history_dir(): string
 {
-    return getenv('PORTAL_HISTORY_DIR') ?: '/data/portal/history';
+    return getenv('PORTAL_HISTORY_DIR') ?: '/data/history';
+}
+
+/**
+ * Fichiers annexes du portail (style.css, etc.) tels que figés dans
+ * l'image au build. Resynchronisés vers /data à chaque régénération du
+ * menu, pour ne jamais dépendre d'une étape de bootstrap séparée.
+ */
+function portal_assets_seed_dir(): string
+{
+    return getenv('PORTAL_ASSETS_SEED_DIR') ?: '/seed/portal';
 }
 
 /**
@@ -162,8 +172,32 @@ function archive_current_index(?string $portalDir = null, ?string $historyDir = 
 }
 
 /**
+ * Recopie les fichiers annexes du portail (style.css, etc.) depuis leur
+ * source figée dans l'image vers /data, en écrasant les versions en place.
+ * Ignore index.html : ce fichier est toujours généré dynamiquement, jamais
+ * recopié depuis la source.
+ */
+function sync_portal_assets(string $seedDir, string $portalDir): void
+{
+    if (!is_dir($seedDir)) {
+        return;
+    }
+
+    foreach (scandir($seedDir) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..' || $entry === 'index.html') {
+            continue;
+        }
+        $source = $seedDir . '/' . $entry;
+        if (is_file($source)) {
+            copy($source, $portalDir . '/' . $entry);
+        }
+    }
+}
+
+/**
  * Point d'entrée : régénère le menu public. Archive l'ancienne version,
- * puis écrit la nouvelle. Appelable manuellement ou après upload/suppression.
+ * resynchronise les fichiers annexes (style.css, etc.), puis écrit la
+ * nouvelle version. Appelable manuellement ou après upload/suppression.
  */
 function regenerate_portal_menu(
     ?string $appsDir = null,
@@ -179,6 +213,7 @@ function regenerate_portal_menu(
     }
 
     archive_current_index($portalDir, $historyDir);
+    sync_portal_assets(portal_assets_seed_dir(), $portalDir);
 
     $apps = scan_apps($appsDir);
     $html = render_portal_html($apps);

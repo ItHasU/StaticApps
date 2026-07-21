@@ -32,5 +32,6 @@ sudo mkdir -p /data && sudo chown "$USER" /data
 tests/e2e/run.sh
 ```
 
-Le script nettoie `/data/apps` et `/data/portal` à chaque exécution : ne
-pas le lancer sur une machine où `/data` contient des données réelles.
+Le script nettoie `/data` (apps, menu, historique, style) à chaque
+exécution : ne pas le lancer sur une machine où `/data` contient des
+données réelles.

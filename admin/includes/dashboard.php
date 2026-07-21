@@ -6,6 +6,14 @@ function render_dashboard_page(): void
 {
     $csrf = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
 
+    $flashHtml = '';
+    if (!empty($_SESSION['flash'])) {
+        $flash = $_SESSION['flash'];
+        unset($_SESSION['flash']);
+        $class = !empty($flash['error']) ? 'flash-error' : 'flash-success';
+        $flashHtml = '<p class="' . $class . '">' . htmlspecialchars($flash['message'], ENT_QUOTES, 'UTF-8') . '</p>';
+    }
+
     echo <<<HTML
         <!DOCTYPE html>
         <html lang="fr">
@@ -24,6 +32,7 @@ function render_dashboard_page(): void
             </form>
           </header>
           <main>
+            {$flashHtml}
             <p>Connexion réussie. Le tableau de bord complet (upload, liste des apps) arrive à l'étape suivante.</p>
             <form method="post" action="/admin.php?action=regenerate">
               <input type="hidden" name="csrf_token" value="{$csrf}">

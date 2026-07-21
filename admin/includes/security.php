@@ -5,6 +5,7 @@ declare(strict_types=1);
 const SECURITY_STATE_DIR = '/data/.admin-state';
 const LOGIN_ATTEMPTS_FILE = SECURITY_STATE_DIR . '/login_attempts.json';
 const AUDIT_LOG_FILE = SECURITY_STATE_DIR . '/audit.log';
+const RATE_LIMIT_FILE = SECURITY_STATE_DIR . '/rate_limits.json';
 
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_SECONDS = 300;
@@ -163,6 +164,38 @@ function clear_login_attempts(string $identifier): void
     $attempts = read_login_attempts();
     unset($attempts[$identifier]);
     write_login_attempts($attempts);
+}
+
+/**
+ * Limitation de débit générique par (bucket, identifiant), fenêtre glissante
+ * stockée sur disque. Retourne false si la limite est atteinte. Enregistre
+ * systématiquement le passage, qu'il soit autorisé ou non.
+ */
+function rate_limit_allow(string $bucket, string $identifier, int $maxHits, int $windowSeconds): bool
+{
+    ensure_security_state_dir();
+
+    $data = [];
+    if (is_file(RATE_LIMIT_FILE)) {
+        $raw = file_get_contents(RATE_LIMIT_FILE);
+        $decoded = $raw === false ? null : json_decode($raw, true);
+        $data = is_array($decoded) ? $decoded : [];
+    }
+
+    $key = $bucket . ':' . $identifier;
+    $now = time();
+    $hits = array_values(array_filter(
+        $data[$key] ?? [],
+        static fn ($ts): bool => is_int($ts) && ($now - $ts) < $windowSeconds
+    ));
+
+    $allowed = count($hits) < $maxHits;
+    $hits[] = $now;
+    $data[$key] = $hits;
+
+    file_put_contents(RATE_LIMIT_FILE, json_encode($data), LOCK_EX);
+
+    return $allowed;
 }
 
 function audit_log(string $event, array $context = []): void

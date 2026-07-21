@@ -273,31 +273,3 @@ function strip_execute_permissions(string $dir): void
     }
 }
 
-function remove_directory_recursive(string $dir): void
-{
-    if (!is_dir($dir)) {
-        return;
-    }
-
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::CHILD_FIRST
-    );
-
-    foreach ($iterator as $item) {
-        if ($item->isDir()) {
-            rmdir((string) $item);
-        } else {
-            unlink((string) $item);
-        }
-    }
-
-    rmdir($dir);
-}
-
-function redirect_to_dashboard(string $message, bool $isError = false): void
-{
-    $_SESSION['flash'] = ['message' => $message, 'error' => $isError];
-    header('Location: /admin.php');
-    exit;
-}

@@ -129,9 +129,6 @@ function validate_and_extract_zip(string $uploadedPath): array
 
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mime = $finfo !== false ? finfo_file($finfo, $uploadedPath) : false;
-    if ($finfo !== false) {
-        finfo_close($finfo);
-    }
     $allowedMimeTypes = ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'];
     if ($mime === false || !in_array($mime, $allowedMimeTypes, true)) {
         return $fail("Le fichier n'est pas reconnu comme une archive zip (type MIME : {$mime}).");
